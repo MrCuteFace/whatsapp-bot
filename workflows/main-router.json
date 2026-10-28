@@ -1,0 +1,1056 @@
+{
+  "name": "Main-Router",
+  "nodes": [
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -3600,
+        784
+      ],
+      "id": "42283c93-2278-4543-9227-8459db72b040",
+      "name": "Webhook",
+      "webhookId": "a0bdb1bf-1043-4ef2-90d6-bca82136f515"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0fc8af67-1b99-49ae-9bcb-401497bfa680",
+              "leftValue": "={{ $json.query[\"hub.mode\"] }}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3088,
+        768
+      ],
+      "id": "7de58360-6a16-49b5-9a51-e97fa13fe042",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query[\"hub.challenge\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2912,
+        752
+      ],
+      "id": "3cf65131-a384-415c-b602-71fb1d7de968",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2928,
+        912
+      ],
+      "id": "438f5efb-ed1e-45f0-9bf8-58d0878c66db",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dce01475-2d91-4aa1-b765-a598d977fd6e",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.messages?.length || 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2688,
+        752
+      ],
+      "id": "ab070f01-8110-4b4f-810b-33bce81d214e",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2144,
+        976
+      ],
+      "id": "a57ebdc9-d444-49b7-89bd-11df61977859",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ID_OF_PACKAGE_TRACKING",
+          "mode": "list",
+          "cachedResultName": "Package-Tracking"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+            "body": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].interactive?.button_reply?.id || $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].text?.body }}",
+            "msgType": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].type }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "msgType",
+              "displayName": "msgType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1568,
+        816
+      ],
+      "id": "772e4d71-45d3-4c47-b284-b25917724cc3",
+      "name": "Call 'Package-Tracking'1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT CASE\n  WHEN EXISTS (SELECT 1 FROM [BotDb].[dbo].[signing_up] WHERE phone = '{{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}') THEN ''\n  ELSE (SELECT TOP 1 role FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}')\nEND AS role",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        -2192,
+        736
+      ],
+      "id": "b6fc307c-ff67-4758-b339-312aa96ee1e3",
+      "name": "Microsoft SQL",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.role }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "empty",
+                      "singleValue": true
+                    },
+                    "id": "1984cd99-c8ad-4266-a7ce-7c5f6dbf3e12"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "399a10fb-a6b6-49a6-972e-263ac349f0a3",
+                    "leftValue": "={{ $json.role }}",
+                    "rightValue": "admin",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "dfd7544a-f64d-44b0-8818-efc0b50417a1",
+                    "leftValue": "={{ $json.role }}",
+                    "rightValue": "shipping_agent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "2b92a55b-b1dc-404b-907f-398060c27ad4",
+                    "leftValue": "={{ $json.role }}",
+                    "rightValue": "customs_broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "cec07c8f-bbb4-4c22-a148-15f3e807d5d4",
+                    "leftValue": "={{ $json.role }}",
+                    "rightValue": "forwarder",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1984,
+        736
+      ],
+      "id": "2752ae87-8805-4f6f-8991-27ec0ba333c4",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "content": "Find out user type before sending to the currect route",
+        "height": 112,
+        "width": 176
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2032,
+        608
+      ],
+      "id": "080768fe-1802-4dfc-97cc-158a22f47c32",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Whatsapp handshake handle\n",
+        "height": 80
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2160,
+        1152
+      ],
+      "id": "e5c5f56a-2699-477a-84bd-543c86e0d0f2",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ID_OF_DATA_AGENT",
+          "mode": "list",
+          "cachedResultName": "Data Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_message": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].interactive?.button_reply?.id || $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].text?.body }}",
+            "phone": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}"
+          },
+          "matchingColumns": [
+            "user_message"
+          ],
+          "schema": [
+            {
+              "id": "user_message",
+              "displayName": "user_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1776,
+        768
+      ],
+      "id": "c9ecced2-011a-4fc7-b770-e428774a6e3d",
+      "name": "Call 'Data Agent'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ID_OF_SIGN_UP",
+          "mode": "list",
+          "cachedResultName": "Sign-up"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+            "body": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].interactive?.button_reply?.id || $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].text?.body }}",
+            "msgType": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].type }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "msgType",
+              "displayName": "msgType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1584,
+        576
+      ],
+      "id": "ce654b1b-4866-43e0-8262-cc277a51bc10",
+      "name": "Call 'Sign-up'"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dce01475-2d91-4aa1-b765-a598d977fd6e",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.messages[0].type }}",
+              "rightValue": "=interactive",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "1d5d1993-b72b-4d6f-8281-01c0c4bd91ab",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.messages[0].errors?.length || 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2464,
+        736
+      ],
+      "id": "388f5b09-55a4-4541-9745-3502663d4aab",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}\",\n  \"type\": \"text\",\n  \"text\": { \n    \"body\": \"נראה שיש בעיה בלחיצה על הכפתורים דרך WhatsApp Web. אנא נסו לבצע את הפעולה מהטלפון הנייד.\" \n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2336,
+        976
+      ],
+      "id": "42662aac-f7d8-41af-aff7-f7cd2f8c0487",
+      "name": "WhatsApp Web bug detector",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dce01475-2d91-4aa1-b765-a598d977fd6e",
+              "leftValue": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+              "rightValue": "972500000001",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "1bc8ea31-51f0-4c0e-b465-3ebc5106ebb0",
+              "leftValue": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+              "rightValue": "972500000002",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1776,
+        640
+      ],
+      "id": "59e61b29-cd39-4119-8a1f-12f30a6b47ed",
+      "name": "If4"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ID_OF_PACKAGE_TRACKING_SERVER_COPY",
+          "mode": "list",
+          "cachedResultName": "Package-Tracking server copy"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+            "body": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].interactive?.button_reply?.id || $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].text?.body }}",
+            "msgType": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].type }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "msgType",
+              "displayName": "msgType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1568,
+        976
+      ],
+      "id": "f305b89b-206c-448b-b64f-d1fa77c4e724",
+      "name": "Call 'Package-Tracking server copy'"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dce01475-2d91-4aa1-b765-a598d977fd6e",
+              "leftValue": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+              "rightValue": "972500000001",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "4d8709ef-4b4e-4f39-af5c-9f58c64942b4",
+              "leftValue": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+              "rightValue": "=972500000002",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1776,
+        896
+      ],
+      "id": "45b4edfe-defb-4dec-9971-ac583ff88867",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ID_OF_SIGN_UP_SERVER_COPY",
+          "mode": "list",
+          "cachedResultName": "Sign-up server copy"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].from }}",
+            "body": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].interactive?.button_reply?.id || $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].text?.body }}",
+            "msgType": "={{ $('Webhook').item.json.body.entry[0].changes[0].value.messages[0].type }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "msgType",
+              "displayName": "msgType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1568,
+        688
+      ],
+      "id": "3b100879-4d27-43d9-b279-55089f7739ea",
+      "name": "Call 'Sign-up server copy'"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto')\n\nconst secret = $env.META_APP_SECRET;\nconst headers = $input.first().json.headers;\nconst signatureHeader = headers['x-hub-signature-256'];\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n\nlet valid = false;\nlet expectedSignature = null;\nif(signatureHeader) {\n  expectedSignature = 'sha256=' + crypto.createHmac('sha256', secret).update(buffer).digest('hex');\n  const received = Buffer.from(signatureHeader);\n  const expected = Buffer.from(expectedSignature);\n  if (received.length === expected.length) {\n    valid = crypto.timingSafeEqual(received, expected);\n  }\n}\nreturn [{ json: { ...$input.first().json, signatureValid: valid } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3376,
+        928
+      ],
+      "id": "acad6e00-6fef-4e82-9c21-912fbde8bf08",
+      "name": "Verify Meta Signature"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0fc8af67-1b99-49ae-9bcb-401497bfa680",
+              "leftValue": "={{ $json.signatureValid }}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3232,
+        928
+      ],
+      "id": "0de5a470-33ad-4026-9852-b22b1574ff2d",
+      "name": "Check Signature"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"error\": \"invalid signature\" }",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -3088,
+        1040
+      ],
+      "id": "318b5b93-157c-4dc0-a4af-a8f334a52652",
+      "name": "Reject Invalid Signature"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verify Meta Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Call 'Data Agent'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Web bug detector",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Microsoft SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Web bug detector": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If4": {
+      "main": [
+        [
+          {
+            "node": "Call 'Sign-up'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Sign-up server copy'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Call 'Package-Tracking'1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Package-Tracking server copy'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Meta Signature": {
+      "main": [
+        [
+          {
+            "node": "Check Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Signature": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Invalid Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d95718bd-df5f-4654-8fa6-1f1c5beb325b",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "main-router",
+  "tags": []
+}

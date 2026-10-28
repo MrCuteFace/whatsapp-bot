@@ -1,0 +1,1218 @@
+{
+  "name": "Sign-up",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "phone"
+            },
+            {
+              "name": "body"
+            },
+            {
+              "name": "msgType"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        5760,
+        9040
+      ],
+      "id": "d7628cd1-0aca-4fef-b9c1-350d24800517",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT state, name, role, hp\nFROM [BotDb].[dbo].[signing_up]\nWHERE phone = '{{ $('When Executed by Another Workflow').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        5984,
+        9040
+      ],
+      "id": "24c4b148-c8cf-40d9-a52d-617b69752e70",
+      "name": "Microsoft SQL",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const phone = $('When Executed by Another Workflow').first().json.phone;\nconst msgType = $('When Executed by Another Workflow').first().json.msgType;\nconst body = $('When Executed by Another Workflow').first().json.body?.trim() || '';\nconst state = $input.first().json.state;\nconst name = $input.first().json.name;\nconst role = $input.first().json.role;\n\nconst validRoles = ['shipping_agent', 'forwarder', 'customs_broker'];\n\nlet route;\nif (!state) {\n  route = 'NO_SESSION';\n} else if (state === 'STARTED') {\n  route = 'STARTED';\n} else if (state === 'NAME_CONFIRM') {\n  if (msgType === 'interactive' && body === 'confirm_name') route = 'NAME_CONFIRMED';\n  else if (msgType === 'interactive' && body === 'fix_name')  route = 'NAME_FIX';\n  else route = 'NAME_CONFIRM_INVALID';\n} else if (state === 'AWAITING_ROLE') {\n  if (msgType === 'interactive' && validRoles.includes(body)) route = 'ROLE_SELECTED';\n  else route = 'ROLE_INVALID';\n} else if (state === 'AWAITING_HP') {\n  route = 'AWAITING_HP';\n} else if (state === 'AWAITING_ADDITIONAL_ROLE') {\n  if (msgType === 'interactive' && body === 'done') route = 'ADDITIONAL_ROLE_DONE';\n  else if (msgType === 'interactive' && validRoles.includes(body)) route = 'ADDITIONAL_ROLE_SELECTED';\n  else route = 'ADDITIONAL_ROLE_INVALID';\n}\n\nreturn [{ json: { ...$input.first().json, route, phone, body, msgType, name, role } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6208,
+        9040
+      ],
+      "id": "97405e1c-005a-43eb-982d-024df7b789e3",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO [BotDb].[dbo].[signing_up] (phone, state)\nVALUES ('{{ $json.phone }}', 'STARTED')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6656,
+        8576
+      ],
+      "id": "54833e36-c26d-4aa0-b18d-f8ce655a01cd",
+      "name": "Microsoft SQL1",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"ברוך הבא! כדי להירשם, אנא הקלד את השם המלא שלך.\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        6880,
+        8576
+      ],
+      "id": "c2dd7b19-b800-4de2-92ea-c51c01380a27",
+      "name": "HTTP Request",
+      "executeOnce": false,
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NO_SESSION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e2759d24-3c41-44c4-977f-369043db6736"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e55a5b11-933c-49d0-af3d-c5b1e8b0ae90",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "STARTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "07152b3f-482d-408a-abd1-e80320178455",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NAME_CONFIRMED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "59b541ce-9c5c-4252-a2b5-abdcba64560a",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NAME_FIX",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bcb0a826-d9c6-4a79-b3e7-23fcb8498159",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NAME_CONFIRM_INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "46448afe-d87f-45bc-be48-654add6c8746",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ROLE_SELECTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e704de89-3015-40c5-9002-30a7773781d9",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ROLE_INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "39bb1f98-06c4-430e-9ed7-7f652ac3754b",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AWAITING_HP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4359d4d6-6295-44af-9406-4cc42454ea73",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ADDITIONAL_ROLE_DONE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ba7890e4-9911-4472-9259-dbd68988be9e",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ADDITIONAL_ROLE_SELECTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "48213d95-e0f5-4c4d-8715-cc7760ba7086",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ADDITIONAL_ROLE_INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        6432,
+        8896
+      ],
+      "id": "6484ac41-fdb1-41b1-a37f-4401c6461c32",
+      "name": "State Router"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[signing_up]\nSET name = N'{{ String($json.body || '').replaceAll(\"'\", \"''\") }}', state = 'NAME_CONFIRM'\nWHERE phone = '{{ $json.phone }}'\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6656,
+        8768
+      ],
+      "id": "3b266a99-1be0-4ea5-bbbb-657a2609ebd2",
+      "name": "Microsoft SQL2",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \"השם שלך: {{ $('Code in JavaScript').first().json.body }}. האם זה נכון?\" },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"confirm_name\", \"title\": \"✓ כן, זה נכון\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"fix_name\",      \"title\": \"✗ תיקון השם\" } }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        6880,
+        8768
+      ],
+      "id": "c3f596fc-12ac-4d48-ad0f-2174d3cb0cca",
+      "name": "HTTP Request1",
+      "executeOnce": false,
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[signing_up]\nSET state = 'AWAITING_HP'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6656,
+        8960
+      ],
+      "id": "d5461a51-cd2b-495d-badc-e2ab1e57083a",
+      "name": "Microsoft SQL3",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Code in JavaScript').first().json.phone;\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: 'אנא בחר את התפקיד שלך:' },\n      action: {\n        buttons: [\n          { type: 'reply', reply: { id: 'shipping_agent', title: '🚢 סוכן אונייה' } },\n          { type: 'reply', reply: { id: 'forwarder', title: '📦 משלח' } },\n          { type: 'reply', reply: { id: 'customs_broker', title: '📋 עמיל מכס' } }\n        ]\n      }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        7328,
+        9824
+      ],
+      "id": "a98a7fd3-effd-4e61-a4ef-39476cee4f53",
+      "name": "HTTP Request2",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[signing_up]\nSET state = 'STARTED'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6656,
+        9152
+      ],
+      "id": "f259ccbe-9007-4000-b515-45ef0ef070cb",
+      "name": "Microsoft SQL4",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"אין בעיה! מה השם המלא שלך?\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        6880,
+        9152
+      ],
+      "id": "904929a3-c353-4e65-a507-8b6afe0cc4eb",
+      "name": "HTTP Request3",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \"השם שלך: {{ $('Code in JavaScript').first().json.body }}. האם זה נכון?\" },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"confirm_name\", \"title\": \"✓ כן, זה נכון\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"fix_name\",      \"title\": \"✗ תיקון השם\" } }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        6656,
+        9344
+      ],
+      "id": "c29d7984-6c78-4e23-a266-51ab8f7cf6c4",
+      "name": "HTTP Request4",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[signing_up]\nSET role = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}', state = 'AWAITING_HP'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6656,
+        10528
+      ],
+      "id": "3b68b446-2a39-49f0-9ab4-d9422dc59b6f",
+      "name": "Microsoft SQL5",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"אנא הזן את מספר ח.פ שלך:\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        6880,
+        8960
+      ],
+      "id": "47e779da-a5ee-4130-865a-c79dc78e2b0a",
+      "name": "HTTP Request5",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \"אנא בחר את התפקיד שלך:\" },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"shipping_agent\", \"title\": \"🚢 סוכן אונייה\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"forwarder\",      \"title\": \"📦 משלח\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"customs_broker\", \"title\": \"📋 עמיל מכס\" } }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        6656,
+        9536
+      ],
+      "id": "8b71e46e-e419-4dbe-a30c-81524578b5d0",
+      "name": "HTTP Request6",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM [BotDb].[dbo].[signing_up]\nWHERE phone = '{{ $('Code in JavaScript').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6880,
+        10256
+      ],
+      "id": "c46eed15-f0ad-42a1-8126-64259dc3e688",
+      "name": "Microsoft SQL6",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO [BotDb].[dbo].[user_roles] (phone, role, name, hp)\nVALUES (\n  '{{ $('Code in JavaScript').first().json.phone }}',\n  '{{ String($('Code in JavaScript').first().json.role || '').replaceAll(\"'\", \"''\") }}',\n  N'{{ String($('Code in JavaScript').first().json.name || '').replaceAll(\"'\", \"''\") }}',\n  '{{ String($('Code in JavaScript').first().json.body || '').replaceAll(\"'\", \"''\") }}'\n)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6880,
+        10448
+      ],
+      "id": "ecf5d6e7-2608-4fc2-a3bc-964300dfe972",
+      "name": "Microsoft SQL7",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"ברוך הבא! נרשמת בהצלחה, {{ $('Code in JavaScript').first().json.name }}.\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        7104,
+        10256
+      ],
+      "id": "5389ad7d-6440-4e64-a944-f0dd65688ec3",
+      "name": "HTTP Request7",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS cnt FROM [BotDb].[dbo].[customers] WHERE customer_id = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6656,
+        9728
+      ],
+      "id": "b35a5571-5b19-4eb1-a2da-5ef2962e0d26",
+      "name": "Query Customer HP",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7026a27f-389c-483c-a5ef-28c6d6a3a731",
+              "leftValue": "={{ $json.cnt }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        6880,
+        9728
+      ],
+      "id": "6f55ef15-e50e-482e-a2c5-1816997afdf8",
+      "name": "HP Valid?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"מספר ח.פ לא נמצא במערכת. אנא הכנס שוב\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        7104,
+        9904
+      ],
+      "id": "4c5142e4-ed20-4d02-9e90-c582efe40635",
+      "name": "HTTP Request8",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[signing_up]\nSET hp = '{{ String($('Code in JavaScript').first().json.body || '').replaceAll(\"'\", \"''\") }}', state = 'AWAITING_ROLE'\nWHERE phone = '{{ $('Code in JavaScript').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        7104,
+        9712
+      ],
+      "id": "4f26b546-bb98-496a-aa58-a825f1f744fe",
+      "name": "Save HP",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT role FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Code in JavaScript').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6880,
+        10064
+      ],
+      "id": "df69a811-ebda-43c9-8cc7-865c4f45921b",
+      "name": "Query Existing Roles",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Code in JavaScript').first().json.phone;\n  const existingRoles = $input.all().map(item => item.json.role);\n  const allRoles = [\n    { id: 'shipping_agent', title: '🚢 סוכן אונייה' },\n    { id: 'forwarder', title: '📦 משלח' },\n    { id: 'customs_broker', title: '📋 עמיל מכס' }\n  ];\n  const remainingRoles = allRoles.filter(r => !existingRoles.includes(r.id));\n  const buttons = [...remainingRoles.map(r => ({ type: 'reply', reply: { id: r.id, title: r.title } })), { type: 'reply', reply: { id: 'done', title: '✅ סיימתי' } }];\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: 'רוצה להוסיף תפקיד נוסף?' },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        7072,
+        10064
+      ],
+      "id": "2092e544-a5a6-4fc5-a019-a92b04ef0f8b",
+      "name": "Ask Additional Role",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO [BotDb].[dbo].[user_roles] (phone, role, name, hp, is_active)\nVALUES (\n  '{{ $('Code in JavaScript').first().json.phone }}',\n  '{{ String($('Code in JavaScript').first().json.body || '').replaceAll(\"'\", \"''\") }}',\n  N'{{ String($('Code in JavaScript').first().json.name || '').replaceAll(\"'\", \"''\") }}',\n  '{{ String($('Code in JavaScript').first().json.hp || '').replaceAll(\"'\", \"''\") }}',\n  CASE WHEN EXISTS (\n    SELECT 1 FROM [BotDb].[dbo].[user_roles]\n    WHERE phone = '{{ $('Code in JavaScript').first().json.phone }}'\n  ) THEN 0 ELSE 1 END\n);\nUPDATE [BotDb].[dbo].[signing_up]\nSET state = 'AWAITING_ADDITIONAL_ROLE'\nWHERE phone = '{{ $('Code in JavaScript').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        6656,
+        10336
+      ],
+      "id": "7f3701af-460b-465c-a665-61a33f7375a5",
+      "name": "Insert Additional Role",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_ID_OF_PACKAGE_TRACKING",
+          "mode": "list",
+          "cachedResultName": "Package-Tracking"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $('When Executed by Another Workflow').item.json.phone }}",
+            "body": "=hi",
+            "msgType": "text"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "msgType",
+              "displayName": "msgType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        7328,
+        10256
+      ],
+      "id": "be232c24-ce11-4c7d-8736-44a522057a26",
+      "name": "Call 'Package-Tracking'"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Microsoft SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "State Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State Router": {
+      "main": [
+        [
+          {
+            "node": "Microsoft SQL1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Microsoft SQL2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Microsoft SQL3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Microsoft SQL4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Additional Role",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Customer HP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Microsoft SQL6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Additional Role",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Existing Roles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL4": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL5": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL6": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL7": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request7",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save HP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request7": {
+      "main": [
+        [
+          {
+            "node": "Call 'Package-Tracking'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Customer HP": {
+      "main": [
+        [
+          {
+            "node": "HP Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HP Valid?": {
+      "main": [
+        [
+          {
+            "node": "Save HP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save HP": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Existing Roles": {
+      "main": [
+        [
+          {
+            "node": "Ask Additional Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Additional Role": {
+      "main": [
+        [
+          {
+            "node": "Query Existing Roles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a8cc9ad9-cf64-478f-b531-e0ecb13d4cac",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "sign-up",
+  "tags": []
+}

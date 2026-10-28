@@ -1,0 +1,188 @@
+{
+  "updatedAt": "2026-06-24T06:53:22.886Z",
+  "createdAt": "2026-06-15T11:37:49.265Z",
+  "id": "data-agent",
+  "name": "Data Agent",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.user_message }}",
+        "options": {
+          "systemMessage": "=You are a logistics assistant helping customer representatives query their company's shipping containers.\n\nYou have read-only access to a Microsoft SQL Server table: [BotDb].[dbo].[deals]\n\n⚠️ SECURITY RULE: Every query MUST include the filter:\n  AND consignee_id = {{ $json.customer_id }}\nwhere {{ $json.customer_id }} is the value provided to you. Never omit this filter. Never query other companies' data.\n\nOnly run SELECT statements. Never INSERT, UPDATE, or DELETE.\n\n--- COLUMN REFERENCE ---\n\nmanifest           — Shipment manifest ID. Groups all containers arriving together in the same shipment.\nContainer          — ISO container number (e.g. ABCU1234567). The main identifier for a single container.\nhandling_type              — Container handling type: PP = will be unloaded/emptied. HH = stays closed, not unloaded.\nentry_date         — Date the container arrived at the warehouse.\ndeal_number      — Deal number (מזהה עסקה). Unique ID for the customs/logistics transaction.\nweight_declared    — Declared cargo weight in kilograms (kg).\nexit_date          — Date the container left the warehouse. NULL means it hasn't left yet.\nbroker_name  — Name of the customs broker handling this shipment (Hebrew names).\nconsignee_name      — Name of the importing company (the customer).\nconsignee_id  — Customer/consignee ID. Used to scope all queries to the authenticated company. consignee_id is a VARCHAR column — always wrap the value in single quotes (e.g. WHERE consignee_id = '512345678').\nbroker_code — Short ID/code of the customs broker.\nThese are the relevent columns, no need to use information on other columns.\n\n--- BEHAVIOR ---\n- Answer in the same language the user writes in (Hebrew or English).\n- When the user says \"containers\" → query the Container column.\n- When the user says \"deals\" / \"עסקאות\" → they likely mean deal_number.\n- If exit_date is NULL, the container is still in the warehouse.\n- If a query returns no results, say so clearly — do not guess or fabricate data.\n- Do not end with a question unless it's needed for the query. For example, if a customer asks 'Where is my container' you may ask 'Please add the container number'."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        0,
+        176
+      ],
+      "id": "67326582-2aa8-4689-8d9d-38ff78f262f4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{$fromAI('sqlQuery', 'SELECT query to run against the database', 'string')}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSqlTool",
+      "typeVersion": 1.1,
+      "position": [
+        144,
+        368
+      ],
+      "id": "f520010a-4782-45dd-9703-e4917f95cc5b",
+      "name": "Microsoft SQL",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        368
+      ],
+      "id": "6ee47540-ac44-4301-8e00-2d7df93a9a89",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Anthropic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "user_message"
+            },
+            {
+              "name": "phone"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -320,
+        176
+      ],
+      "id": "aca40f68-063c-4ba8-a89d-b68c103a670d",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Code in JavaScript').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \n      \"text\": \"שלום! ברוכים הבאים 👋\\n\\nבחרו אפשרות:\" \n    },\n    \"action\": {\n      \"buttons\": [\n        { \n          \"type\": \"reply\", \n          \"reply\": { \n            \"id\": \"1\", \n            \"title\": \"מעקב מכולה\" \n          } \n        }\n      ]\n    }\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        336,
+        176
+      ],
+      "id": "e2a2d8ef-040d-499b-b3c7-75b4c22c2839",
+      "name": "HTTP Request",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft SQL": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "versionId": "ebdd197a-8b8f-4f55-9945-5f3fa24b4707",
+  "activeVersionId": "ebdd197a-8b8f-4f55-9945-5f3fa24b4707",
+  "versionCounter": 357,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "versionMetadata": {
+    "name": "Version ebdd197a",
+    "description": ""
+  }
+}

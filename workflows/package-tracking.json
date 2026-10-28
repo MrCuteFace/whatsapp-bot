@@ -1,0 +1,3559 @@
+{
+  "name": "Package-Tracking",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "phone"
+            },
+            {
+              "name": "body"
+            },
+            {
+              "name": "msgType"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1184,
+        9744
+      ],
+      "id": "d1aeefd8-9054-4559-aca5-2c6d78c86bc4",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    COALESCE((SELECT state FROM [BotDb].[dbo].[sessions] WHERE phone = '{{ $json.phone }}'), 'NO_SESSION') AS state,\n    (SELECT container_number FROM [BotDb].[dbo].[sessions] WHERE phone = '{{ $json.phone }}') AS container_number,\n    (SELECT container_type FROM [BotDb].[dbo].[sessions] WHERE phone = '{{ $json.phone }}') AS container_type,\n    (SELECT last_deal_number FROM [BotDb].[dbo].[sessions] WHERE phone = '{{ $json.phone }}') AS last_deal_number,\n    (SELECT last_deal_container FROM [BotDb].[dbo].[sessions] WHERE phone = '{{ $json.phone }}') AS last_deal_container",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        1408,
+        9744
+      ],
+      "id": "a6132849-8140-4c7d-8659-af8fd930cac3",
+      "name": "Get Session State",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Free-text answers become part of SQL text (the SQL node interpolates expressions). Anything that\n// does not look like an ID is reduced to an empty string, so the lookup simply finds nothing.\n// Every query also escapes quotes, which is the actual protection; this check is the second layer.\nconst safeId = (s) => (/^[A-Za-z0-9\\-\\/. ]{1,40}$/.test(s) ? s : '');\nconst phone = $('When Executed by Another Workflow').first().json.phone;\nconst msgType = $('When Executed by Another Workflow').first().json.msgType;\nlet body = $('When Executed by Another Workflow').first().json.body?.trim() || '';\nconst state = $input.first().json.state;\nconst containerNumber = $input.first().json.container_number;\nconst containerType = $input.first().json.container_type;\nconst lastDealNumber = $input.first().json.last_deal_number;\nconst lastDealContainer = $input.first().json.last_deal_container;\nlet route;\nif (state === 'NO_SESSION') route = 'NO_SESSION';\nelse if (state === 'MENU_SENT' && body === '1' && msgType === 'interactive') route = 'MENU_SENT_1';\nelse if (state === 'MENU_SENT' && body === 'cargo_tracking' && msgType === 'interactive') route = 'MENU_SENT_CARGO';\nelse if (state === 'MENU_SENT' && body === 'הירשם מחדש' && msgType === 'text' /*&& ['972500000002', '972500000001'].includes(phone)*/) route = 'MENU_SENT_RESIGN_UP';\nelse if (state === 'MENU_SENT' && body === 'switch_role' && msgType === 'interactive') route = 'MENU_SWITCH_ROLE';\nelse if (state === 'MENU_SENT') route = 'MENU_SENT_OTHER';\nelse if (state === 'TRACKING_MENU_SENT' && body === 'full_container' && msgType === 'interactive') route = 'TRACKING_FULL';\nelse if (state === 'TRACKING_MENU_SENT' && body === 'empty_container' && msgType === 'interactive') route = 'TRACKING_EMPTY';\nelse if (state === 'TRACKING_MENU_SENT' && body === 'recheck_last' && msgType === 'interactive' && containerNumber) { route = (containerType === 'HH') ? 'AWAITING_VALID' : 'AWAITING_EMPTY_VALID'; body = containerNumber; }\nelse if (state === 'TRACKING_MENU_SENT' && body === 'declaration' && msgType === 'interactive') route = 'TRACKING_DECLARATION';\nelse if (state === 'TRACKING_MENU_SENT') route = 'TRACKING_MENU_OTHER';\nelse if (state === 'AWAITING_CONTAINER' && body === 'back_to_menu' && msgType === 'interactive') route = 'AWAITING_GO_BACK';\nelse if (state === 'AWAITING_CONTAINER' && /^\\d{7}$/.test(body)) route = 'AWAITING_VALID';\nelse if (state === 'FULL_RESULT_MENU_SENT' && body === 'more_info' && msgType === 'interactive') route = 'FULL_MORE_INFO';\nelse if (state === 'FULL_RESULT_MENU_SENT' && body === 'back_to_menu' && msgType === 'interactive') route = 'FULL_RESULT_GO_BACK';\nelse if (state === 'FULL_RESULT_MENU_SENT' && body === 'list_containers' && msgType === 'interactive') route = 'FULL_LIST_CONTAINERS';\nelse if (state === 'FULL_RESULT_MENU_SENT') route = 'FULL_RESULT_MENU_OTHER';\nelse if (state === 'MORE_INFO_MENU_SENT' && body === 'customs_check' && msgType === 'interactive') route = 'CUSTOMS_CHECK';\nelse if (state === 'MORE_INFO_MENU_SENT' && body === 'scan_request' && msgType === 'interactive') route = 'SCAN_REQUEST';\nelse if (state === 'MORE_INFO_MENU_SENT') route = 'MORE_INFO_MENU_OTHER';\nelse if (state === 'AWAITING_CONTAINER_EMPTY' && body === 'back_to_menu' && msgType === 'interactive') route = 'AWAITING_EMPTY_GO_BACK';\nelse if (state === 'AWAITING_CONTAINER_EMPTY' && /^\\d{7}$/.test(body)) route = 'AWAITING_EMPTY_VALID';\nelse if (state === 'AWAITING_CONTAINER_EMPTY') route = 'AWAITING_EMPTY_INVALID';\nelse if (state === 'EMPTY_RESULT_MENU_SENT' && body === 'empty_deal_number' && msgType === 'interactive') route = 'EMPTY_DEAL_NUMBER';\nelse if (state === 'EMPTY_RESULT_MENU_SENT' && body === 'back_to_menu' && msgType === 'interactive') route = 'EMPTY_RESULT_GO_BACK';\nelse if (state === 'EMPTY_RESULT_MENU_SENT' && body === 'list_packages' && msgType === 'interactive') route = 'EMPTY_LIST_PACKAGES';\nelse if (state === 'EMPTY_RESULT_MENU_SENT') route = 'EMPTY_RESULT_MENU_OTHER';\nelse if (state === 'AWAITING_DEAL_NUMBER_EMPTY' && body === 'back_to_menu' && msgType === 'interactive') route = 'DEAL_NUMBER_EMPTY_GO_BACK';\nelse if (state === 'AWAITING_DEAL_NUMBER_EMPTY' && body === 'recheck_last_deal' && msgType === 'interactive' && lastDealNumber && lastDealContainer === containerNumber) { route = 'DEAL_NUMBER_EMPTY_SUBMITTED'; body = lastDealNumber; }\nelse if (state === 'AWAITING_DEAL_NUMBER_EMPTY') { route = 'DEAL_NUMBER_EMPTY_SUBMITTED'; body = safeId(body); }\nelse if (state === 'AWAITING_DEAL_NUMBER_CARGO' && body === 'back_to_menu' && msgType === 'interactive') route = 'DEAL_NUMBER_CARGO_GO_BACK';\n  else if (state === 'AWAITING_DEAL_NUMBER_CARGO' && body === 'recheck_last_deal' && msgType === 'interactive' && lastDealNumber) { route = 'DEAL_NUMBER_CARGO_SUBMITTED'; body = lastDealNumber; }\nelse if (state === 'AWAITING_DEAL_NUMBER_CARGO' && /^[a-z0-9]{16}$/i.test(body)) route = 'DEAL_NUMBER_CARGO_SUBMITTED';\nelse if (state === 'AWAITING_DEAL_NUMBER_CARGO') route = 'DEAL_NUMBER_CARGO_INVALID';\nelse if (state === 'AWAITING_DECLARATION' && body === 'back_to_menu' && msgType === 'interactive') route = 'DECLARATION_GO_BACK';\nelse if (state === 'AWAITING_DECLARATION') { route = 'DECLARATION_SUBMITTED'; body = safeId(body); }\nelse if (state === 'AWAITING_ROLE_SWITCH' && ['shipping_agent','forwarder','customs_broker'].includes(body) && msgType === 'interactive') route = 'ROLE_SWITCH_SELECTED';\nelse if (state === 'AWAITING_ROLE_SWITCH') route = 'ROLE_SWITCH_INVALID';\nelse route = 'AWAITING_INVALID';\nreturn [{ json: { ...$input.first().json, route, phone, body, msgType } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        9744
+      ],
+      "id": "7a89b730-0dc5-47eb-9161-e1ad2ad0a0c6",
+      "name": "Determine Route"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "=NO_SESSION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e61dbdba-4b8d-4232-b93a-3d8d54b8c97c"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "64eca3a7-0922-43f8-a97b-5b2c3a735491",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "MENU_SENT_1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3f46ab26-6585-4425-980e-72f8e59f812d",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "MENU_SENT_OTHER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "70c1510b-9b91-4c5d-868e-fc7752515398",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AWAITING_GO_BACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3392836d-3a37-4fc9-984c-5b17be388557",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AWAITING_VALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "537f8232-95f8-407b-b30d-0572e0f45a3c",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AWAITING_INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ffb5f7c5-6693-485b-aa6a-f70a74dc77c3",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "TRACKING_MENU_OTHER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e2b23fda-9c6a-42d9-8439-06ba7a1fa274",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "TRACKING_FULL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4f5c7cba-202e-4f3e-a98e-53650f0f8907",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "TRACKING_EMPTY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "521125e0-dbb4-4118-86e7-fb1cef45a41e",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "TRACKING_DECLARATION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e94cea80-3128-483e-8780-2e46743abbcb",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AWAITING_EMPTY_GO_BACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "54528675-91e6-4b4d-a7f7-1a9a399ae0cc",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AWAITING_EMPTY_INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "999e410f-dd4f-4bf0-a799-ac488455cacd",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AWAITING_EMPTY_VALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8f866d2d-6eba-4fdf-b8ff-215ad68509ab",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "EMPTY_RESULT_GO_BACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "485cb303-3823-4a57-ae93-88aec2b62b97",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "EMPTY_RESULT_MENU_OTHER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "1ee1ba08-3bc1-47dc-b50d-df02089ebd0e",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "EMPTY_DEAL_NUMBER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a965813b-03ab-4efc-b750-c5ceaaf2bf40",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DEAL_NUMBER_EMPTY_GO_BACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "31f38713-8233-47e9-9732-ec7a735ca98e",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DEAL_NUMBER_EMPTY_SUBMITTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "1fc3369e-5681-4be6-a513-425e8b415c84",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DECLARATION_GO_BACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "793d871d-6c20-4ac3-a9b7-c57e0afbe2dc",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DECLARATION_SUBMITTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "9a48feff-851e-4d96-9981-08718f428b71",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "FULL_RESULT_GO_BACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "7a84d247-be63-4b57-b162-1877accb4dae",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "FULL_RESULT_MENU_OTHER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ad1d9df1-864e-477f-8d3d-338730f74c8a",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "FULL_MORE_INFO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a05616c9-f20c-4f77-a95f-fff49f73a2f7",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "CUSTOMS_CHECK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "628c46aa-ced0-47a3-8ca9-9f8452ccae1f",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "SCAN_REQUEST",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b793bb92-61ff-45cc-a6f9-cf8a65fea473",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "MORE_INFO_MENU_OTHER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3d61c308-4613-437b-b90f-9b6fd5ef1d7c",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "MENU_SENT_CARGO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d7b25259-25f8-40d1-9d08-0386d04ab7c8",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DEAL_NUMBER_CARGO_GO_BACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "71e9c62b-23d3-4999-b392-186d3f47cd2f",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DEAL_NUMBER_CARGO_SUBMITTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ea7012c5-82d6-4f0b-9f0c-d6ec22733d43",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "EMPTY_LIST_PACKAGES",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "0427dc1a-53a7-4e97-938d-ecd0e646d4b8",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "FULL_LIST_CONTAINERS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "7daa65e5-0c8d-4ea8-bd45-32f1431e8e13",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "MENU_SWITCH_ROLE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a8bd199e-3c0e-4fb8-98da-ecdf828e6dcd",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ROLE_SWITCH_SELECTED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "c2ecec49-37df-46bd-8e88-d897860124da",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "MENU_SENT_RESIGN_UP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "91948d7c-f45f-4d60-9054-b578446d038f",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ROLE_SWITCH_INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "061428d1-f7ea-42ef-9109-97020f4e3311",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DEAL_NUMBER_CARGO_INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1856,
+        9216
+      ],
+      "id": "8c2622fe-c6ea-4037-a982-7bb9d2c13169",
+      "name": "Main Router (Route Switch)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'MENU_SENT'\nWHERE phone = '{{ $('Determine Route').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2976,
+        7904
+      ],
+      "id": "84f10fa5-2a21-4a62-a006-a6291475af1b",
+      "name": "Reset State: Menu Sent",
+      "executeOnce": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const name = $json.name;\n  const companyName = $json.company_name;\n  const phone = $('Determine Route').first().json.phone;\n  const role = $json.role;\n  const roleCount = $json.role_count;\n  const roleLabels = {\n    shipping_agent: 'סוכן אונייה 🚢',\n    forwarder: 'משלח 📦',\n    customs_broker: 'עמיל מכס 📋'\n  };\n  const buttons = [\n    { type: 'reply', reply: { id: '1', title: 'מעקב מכולה' } }\n  ];\n  if (role === 'customs_broker') {\n    buttons.push({ type: 'reply', reply: { id: 'cargo_tracking', title: 'מעקב מטען' } });\n  }\n  if (roleCount > 1) {\n    buttons.push({ type: 'reply', reply: { id: 'switch_role', title: 'החלף תפקיד 🔄' } });\n  }\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: `שלום ${name}! 👋 אתה מחובר בתור ${roleLabels[role] || role} מטעם ${companyName}` },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3424,
+        8144
+      ],
+      "id": "be836b5c-726b-4c18-b90e-85ea2950cb11",
+      "name": "Send Main Menu",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": { \n    \"body\": \"המכולה אינה קיימת במערכת ואינה צפויה להגיע 🚫\"\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        8032
+      ],
+      "id": "597003d5-5fee-4c81-8dfe-248e50a42b17",
+      "name": "Send Not Found (Generic)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \n      \"text\": \"פורמט לא תקין ❌\\nמספר מכולה חייב להכיל 7 ספרות בלבד (לדוגמה: 1234567)\\nנסו שנית:\" \n    },\n    \"action\": {\n      \"buttons\": [\n        { \n          \"type\": \"reply\", \n          \"reply\": { \n            \"id\": \"back_to_menu\", \n            \"title\": \"חזרה לתפריט\" \n          } \n        }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2080,
+        7600
+      ],
+      "id": "187d6296-1b07-425b-87ee-b2e893dcef2c",
+      "name": "Send Invalid Format (Container)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO [BotDb].[dbo].[sessions] (phone, state)\nVALUES ('{{ $json.phone }}', 'MENU_SENT')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2976,
+        8720
+      ],
+      "id": "e5f1c4ea-8fa3-4907-85db-2fc4648ab0d4",
+      "name": "New Session: Insert Menu Sent",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'TRACKING_MENU_SENT'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        9136
+      ],
+      "id": "0a8b875d-a3fc-4a9b-91a2-b1198affd7fd",
+      "name": "Set State: Tracking Menu Sent",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Determine Route').first().json.phone;\n  const containerNumber = $('Determine Route').first().json.container_number;\n  const buttons = [\n    { type: 'reply', reply: { id: 'full_container', title: 'מכולה מלאה' } },\n    { type: 'reply', reply: { id: 'empty_container', title: 'מכולת ריקון' } }\n  ];\n  if (containerNumber) {\n    buttons.push({ type: 'reply', reply: { id: 'recheck_last', title: `מכולה מספר ${containerNumber}` } });\n  }\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: 'בחר סוג מעקב:' },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2528,
+        9136
+      ],
+      "id": "61a4e1c9-95d5-4ab7-9d75-4b88a4b94b3a",
+      "name": "Send Tracking Submenu",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'AWAITING_CONTAINER'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        9360
+      ],
+      "id": "dc684a41-5558-49f1-b67d-f0a576fc524f",
+      "name": "Set State: Awaiting Container (Full)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Determine Route').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"הזינו את מספר המכולה:\"\n    },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"back_to_menu\", \"title\": \"חזרה לתפריט\" } }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        9360
+      ],
+      "id": "73889c55-ea69-4db2-9f74-c96d324b64db",
+      "name": "Ask Container Number (Full)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  CASE\n    WHEN COUNT(*) = 0 THEN 'NOT_FOUND'\n    ELSE 'FOUND'\n  END AS status,\n  MAX(v.entry_date) AS entry_date,\n  CASE WHEN MAX(v.declaration_number) IS NOT NULL AND MAX(v.declaration_number) <> '' THEN 1 ELSE 0 END AS has_customs,\n  MAX(v.escort_received_at) AS livoi_date,\n  MAX(v.exit_date) AS exit_date,\n  MAX(CASE WHEN o.is_owner = 1 THEN s.cnt END) AS sibling_count,\n  MAX(o.is_owner) AS is_owner\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp, role FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Determine Route').first().json.phone }}' AND is_active = 1) u\nCROSS APPLY (SELECT CASE\n  WHEN u.role = 'customs_broker' THEN CASE WHEN v.release_order_customer_id = u.hp OR v.broker_code = u.hp THEN 1 ELSE 0 END\n  WHEN u.role IN ('shipping_agent', 'forwarder') THEN CASE WHEN v.declarant_customer_id = u.hp THEN 1 ELSE 0 END\n  ELSE 0\nEND AS is_owner) o\nCROSS APPLY (\n  SELECT COUNT(DISTINCT v2.container_number) AS cnt\n  FROM [BotDb].[dbo].[v_terminal_cargo] v2\n  WHERE v2.handling_type = 'HH' AND v2.package_kind = 'CON'\n    AND LEFT(v2.deal_number, 16) = LEFT(v.deal_number, 16)\n    AND v2.container_number <> v.container_number\n) s\nWHERE v.container_number = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}'\nAND v.logistic_approval <> 1\nAND v.handling_type = 'HH'\nAND v.package_kind = 'CON'\nAND v.status_code <> 'D'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        8144
+      ],
+      "id": "ba45f405-f00d-4639-900e-c73da801cb13",
+      "name": "Query Container Status (Full)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "c519d08b-e35a-4834-803a-2c81bc0ebdf1",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8170eae8-02a5-4178-8161-fa8457fe032b",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "198fa2b3-58bc-46bd-9579-06c553181b98",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_YOURS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2528,
+        8128
+      ],
+      "id": "102f617f-48fc-498f-8a15-ecb69e209e47",
+      "name": "Branch: Full Container Found?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Main Router (Route Switch)').item.json.phone;\n  const livoiDate = $json.livoi_date_fmt;\n  const entryDate = $json.entry_date === '00000000' ? '❌' : $json.entry_date.slice(6,8) + '/' + $json.entry_date.slice(4,6) + '/' + $json.entry_date.slice(0,4);\n  const exitDate = $json.exit_date === '00000000' ? '❌' : $json.exit_date.slice(6,8) + '/' + $json.exit_date.slice(4,6) + '/' + $json.exit_date.slice(0,4);\n  const buttons = [];\n  if ($json.is_owner === 1) {\n    buttons.push({ type: 'reply', reply: { id: 'more_info', title: 'מידע נוסף' } });\n  }\n  if ($json.sibling_count > 0) {\n    buttons.push({ type: 'reply', reply: { id: 'list_containers', title: `מכולות נוספות (${$json.sibling_count})` } });\n  }\n  buttons.push({ type: 'reply', reply: { id: 'back_to_menu', title: 'חזרה לתפריט' } });\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: `סטטוס מכולה 📦\\n\\nתעודת ליווי: ${livoiDate}\\nתאריך כניסה: ${entryDate}\\nתאריך יציאה: ${exitDate}` },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2976,
+        8224
+      ],
+      "id": "11d52bb5-022f-4b92-af7e-bbf5ee36574d",
+      "name": "Send Full Container Status",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'AWAITING_CONTAINER_EMPTY'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        9584
+      ],
+      "id": "0670b1b9-2a0e-465a-939d-1069775f1ba0",
+      "name": "Set State: Awaiting Container (Empty)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Determine Route').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"הזינו את מספר המכולה:\"\n    },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"back_to_menu\", \"title\": \"חזרה לתפריט\" } }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        9584
+      ],
+      "id": "74a7cfce-3934-4adb-b027-0d0b9fe34854",
+      "name": "Ask Container Number (Empty)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  CASE\n    WHEN COUNT(*) = 0 THEN 'NOT_FOUND'\n    ELSE 'FOUND'\n  END AS status,\n  MAX(v.escort_received_at) AS livoi_date,\n  MAX(v.entry_date) AS entry_date,\n  MAX(v.rk_date) AS rk_date,\n  MAX(v.exit_date) AS exit_date,\n  MAX(o.is_primary) AS is_primary,\n  MAX(o.is_owner) AS is_owner,\n  COUNT(DISTINCT CASE WHEN v.forwarder_master_id = u.hp THEN v.deal_number END) AS own_count,\n  COUNT(DISTINCT CASE WHEN v.package_kind <> 'CON' THEN v.deal_number END) AS total_count\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp, role FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Determine Route').first().json.phone }}' AND is_active = 1) u\nCROSS APPLY (SELECT\n  CASE WHEN u.role = 'forwarder' THEN CASE WHEN v.container_owner_agent_id = u.hp OR v.forwarder_master_id = u.hp THEN 1 ELSE 0 END ELSE 0 END AS is_owner,\n  CASE WHEN u.role = 'forwarder' AND v.container_owner_agent_id = u.hp THEN 1 ELSE 0 END AS is_primary\n) o\nWHERE v.container_number = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}'\nAND v.logistic_approval <> 1\nAND v.handling_type = 'PP'\nAND (v.status_code <> 'D' OR v.status_code IS NULL)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        8896
+      ],
+      "id": "4cf0d1ac-aae8-469c-a0cb-1c572a1514a6",
+      "name": "Query Container Status (Empty)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8b174b9c-8ae0-4dd6-a287-408f1fa33465"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3325627a-f05c-43eb-a35e-2e3385faea6b",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "123bb8d8-f718-4a3c-a276-8bfc014e68f8",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_YOURS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2304,
+        8880
+      ],
+      "id": "73227c70-c7df-4911-a5c5-afb1c961065e",
+      "name": "Branch: Empty Container Found?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Main Router (Route Switch)').item.json.phone;\n  const livoiDate = $json.livoi_date_fmt;\n  const entryDate = $json.entry_date === '00000000' ? '❌' : $json.entry_date.slice(6,8) + '/' + $json.entry_date.slice(4,6) + '/' + $json.entry_date.slice(0,4);\n  const rkDate = $json.rk_date === '00000000' ? '❌' : $json.rk_date.slice(6,8) + '/' + $json.rk_date.slice(4,6) + '/' + $json.rk_date.slice(0,4);\n  const exitDate = $json.exit_date === '00000000' ? '❌' : $json.exit_date.slice(6,8) + '/' + $json.exit_date.slice(4,6) + '/' + $json.exit_date.slice(0,4);\n  let text = `סטטוס מכולה 📦\\n\\nתעודת ליווי: ${livoiDate}\\nתאריך כניסה: ${entryDate}\\nתאריך ריקון: ${rkDate}\\nתאריך יציאה: ${exitDate}`;\n  if ($json.is_primary === 1) {\n    text += `\\nסה\"כ מטענים במכולה: ${$json.total_count}`;\n  }\n  if ($json.is_owner === 1) {\n    text += `\\nמטענים ששייכים לך: ${$json.own_count}`;\n  }\n  const buttons = [\n    { type: 'reply', reply: { id: 'back_to_menu', title: 'חזרה לתפריט' } }\n  ];\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        8896
+      ],
+      "id": "0f93dc5e-9297-43ee-877a-b44c476140b0",
+      "name": "Send Empty Status + Deal Choice",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'EMPTY_RESULT_MENU_SENT', container_number = '{{ String($('Main Router (Route Switch)').item.json.body || '').replaceAll(\"'\", \"''\") }}', container_type = 'PP'\nWHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2976,
+        8896
+      ],
+      "id": "6d06fc5a-6cfa-4535-8d9d-f9e78175f025",
+      "name": "Set State: Empty Result Menu Sent",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'AWAITING_DEAL_NUMBER_EMPTY'\nWHERE phone = '{{ $json.phone }}'\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        9968
+      ],
+      "id": "5bd2bead-0dc2-4e0e-92bf-c4403c4e7160",
+      "name": "Set State: Awaiting Deal Number",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Determine Route').first().json.phone;\n  const lastDealNumber = $('Determine Route').first().json.last_deal_number;\n  const lastDealContainer = $('Determine Route').first().json.last_deal_container;\n  const containerNumber = $('Determine Route').first().json.container_number;\n  const buttons = [];\n  if (lastDealNumber && lastDealContainer === containerNumber) {\n    buttons.push({ type: 'reply', reply: { id: 'recheck_last_deal', title: `${lastDealNumber}` } });\n  }\n  buttons.push({ type: 'reply', reply: { id: 'back_to_menu', title: 'חזרה לתפריט' } });\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: 'הזינו את מזהה העסקה:' },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        9968
+      ],
+      "id": "0e8fc23c-fae0-41be-95f5-90853220b835",
+      "name": "Ask Deal Number",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  CASE\n    WHEN COUNT(*) = 0 THEN 'NOT_FOUND'\n    WHEN COUNT(CASE WHEN o.is_owner = 1 THEN 1 END) = 0 THEN 'NOT_YOURS'\n    ELSE 'FOUND'\n  END AS status,\n  MAX(CASE WHEN o.is_owner = 1 THEN v.qty_declared END) AS qty,\n  MAX(CASE WHEN o.is_owner = 1 THEN v.weight_declared END) AS weight,\n  CASE WHEN MAX(CASE WHEN o.is_owner = 1 THEN v.declaration_number END) IS NOT NULL AND MAX(CASE WHEN o.is_owner = 1 THEN v.declaration_number END) <> '' THEN 1 ELSE 0 END AS has_customs,\n  CASE WHEN MAX(CASE WHEN o.is_owner = 1 THEN v.has_escort END) = 'Y' THEN 1 ELSE 0 END AS has_livoi,\n  MAX(CASE WHEN o.is_owner = 1 THEN v.exit_date END) AS exit_date\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}' AND is_active = 1) u\nCROSS APPLY (SELECT CASE WHEN v.forwarder_master_id = u.hp AND v.container_number = '{{ $('Main Router (Route Switch)').item.json.container_number }}' THEN 1 ELSE 0 END AS is_owner) o\nWHERE v.deal_number = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}'\nAND v.handling_type = 'PP'\nAND v.logistic_approval <> 1\nAND v.status_code <> 'D'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        10176
+      ],
+      "id": "75fa5019-971f-4aae-8767-b7b69ead375c",
+      "name": "Query Deal Status",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8b174b9c-8ae0-4dd6-a287-408f1fa33465"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3325627a-f05c-43eb-a35e-2e3385faea6b",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6cee9092-3fb8-4b87-b3c1-c7a9d8bccc14",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_YOURS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2304,
+        10160
+      ],
+      "id": "970d6ce5-cacf-4f0e-bcd0-caa45433871f",
+      "name": "Branch: Deal Found?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \" מזהה העסקה לא נמצא במערכת ❌\\nבדקו את המספר ונסו שוב:\" },\n    \"action\": {\n      \"buttons\": [\n        { \n          \"type\": \"reply\", \n          \"reply\": { \"id\": \"back_to_menu\", \"title\": \"חזרה לתפריט\" } \n        }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2528,
+        10080
+      ],
+      "id": "e21bdb71-c914-4698-9279-9e5830f43782",
+      "name": "Send Deal Not Found",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"📦 פרטי עסקה\\n\\nכמות: {{ $json.qty }}\\nמשקל: {{ $json.weight }} ק\\\"ג\\nהתרת מכס: {{ $json.has_customs === 1 ? '✅' : '❌' }}\\nתעודת ליווי: {{ $json.has_livoi === 1 ? '✅' : '❌' }}\\nתאריך יציאה: {{ $json.exit_date === '00000000' ? '❌' : $json.exit_date.slice(6,8) + '/' + $json.exit_date.slice(4,6) + '/' + $json.exit_date.slice(0,4) }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2528,
+        10272
+      ],
+      "id": "849ae5d1-1fbf-482b-948d-f4e53b3b9db7",
+      "name": "Send Deal Status",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'AWAITING_DECLARATION'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        9776
+      ],
+      "id": "55adfd04-1376-407d-a17c-2b6e3e021bdf",
+      "name": "Set State: Awaiting Declaration",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Determine Route').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \"הזינו את מספר ההצהרה:\" },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"back_to_menu\", \"title\": \"חזרה לתפריט\" } }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        9776
+      ],
+      "id": "26ca831d-36b6-4488-a57e-1eb3970ab60b",
+      "name": "Ask Declaration Number",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  handling_type,\n  Container,\n  deal_number,\n  MAX(entry_date) AS entry_date,\n  CASE WHEN MAX(declaration_number) IS NOT NULL AND MAX(declaration_number) <> '' THEN 1 ELSE 0 END AS has_customs,\n  CASE WHEN MAX(has_escort) = 'Y' THEN 1 ELSE 0 END AS has_livoi,\n  MAX(exit_date) AS exit_date,\n  MAX(qty_declared) AS qty,\n  MAX(weight_declared) AS weight\nFROM [BotDb].[dbo].[v_terminal_cargo]\nWHERE declaration_number = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}'\n  AND logistic_approval <> 1\n  AND status_code <> 'D'\nAND (release_order_customer_id = (SELECT hp FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Determine Route').first().json.phone }}' AND is_active = 1) OR broker_code = (SELECT hp FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Determine Route').first().json.phone }}' AND is_active = 1))\nGROUP BY handling_type, Container, deal_number\nORDER BY Container, deal_number",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        10528
+      ],
+      "id": "b75c7157-3d4f-41c4-925d-f732bfb40cbe",
+      "name": "Query Declaration Contents",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all()\n  .map(i => i.json)\n  .filter(r => r.handling_type !== undefined && r.handling_type !== null);\n\nif (rows.length === 0) {\n  return [{ json: { message: \"לא נמצאה הצהרה עם מספר זה במערכת\" }, pairedItem: 0 }];\n}\n\nconst formatDate = (d) => d === '00000000' ? '❌' : `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;\n\nconst isFull = rows[0].handling_type === 'HH';\n\nconst blocks = rows.map(r => {\n  if (isFull) {\n    return `מכולה ${r.Container}\\n` +\n           `תאריך כניסה: ${formatDate(r.entry_date)}\\n` +\n           `התרת מכס: ${r.has_customs === 1 ? '✅' : '❌'}\\n` +\n           `תעודת ליווי: ${r.has_livoi === 1 ? '✅' : '❌'}\\n` +\n           `תאריך יציאה: ${formatDate(r.exit_date)}`;\n  } else {\n    return `עסקה ${r.deal_number}\\n` +\n           `כמות: ${r.qty}\\n` +\n           `משקל: ${r.weight} ק\"ג\\n` +\n           `התרת מכס: ${r.has_customs === 1 ? '✅' : '❌'}\\n` +\n           `תעודת ליווי: ${r.has_livoi === 1 ? '✅' : '❌'}\\n` +\n           `תאריך יציאה: ${formatDate(r.exit_date)}`;\n  }\n});\n\nconst BATCH_SIZE = 30;\nconst batches = [];\nfor (let i = 0; i < blocks.length; i += BATCH_SIZE) {\n  batches.push(blocks.slice(i, i + BATCH_SIZE));\n}\n\nconst header = isFull ? '📦 מכולות תחת ההצהרה' : '💼 עסקאות תחת ההצהרה';\n\nreturn batches.map(batch => ({\n  json: { message: `${header}\\n\\n${batch.join('\\n\\n')}` },\n  pairedItem: 0\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        10656
+      ],
+      "id": "305ca863-099f-4f44-b7aa-ef4e66a99ffb",
+      "name": "Format & Batch Declaration Results",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": {{ JSON.stringify($json.message) }} }\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        10656
+      ],
+      "id": "ee78fb5c-0113-40bb-b7c3-9cc9ac4f3b2a",
+      "name": "Send Declaration Results (Batched)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "NO_SESSION                          → new session, send main menu\nMENU_SENT + \"1\"                     → send tracking submenu\nMENU_SENT (other)                   → resend main menu\n\nTRACKING_MENU_SENT + full_container     → ask for container # (מכולה מלאה)\nTRACKING_MENU_SENT + empty_container    → ask for container # (מכולה ריקון)\nTRACKING_MENU_SENT + declaration        → ask for הצהרה number\nTRACKING_MENU_SENT (other)              → resend submenu\n\nAWAITING_CONTAINER + back_to_menu       → main menu\nAWAITING_CONTAINER + valid container#   → query מכולה מלאה\nAWAITING_CONTAINER (invalid)            → invalid format msg\n\nAWAITING_CONTAINER_EMPTY + back_to_menu → main menu\nAWAITING_CONTAINER_EMPTY + valid #      → query מכולה ריקון\nAWAITING_CONTAINER_EMPTY (invalid)      → invalid format msg\n\nEMPTY_RESULT_MENU_SENT + empty_deal_number → ask deal number\nEMPTY_RESULT_MENU_SENT + back_to_menu      → main menu\nEMPTY_RESULT_MENU_SENT (other)             → main menu \n\n\nAWAITING_DEAL_NUMBER_EMPTY + back_to_menu → main menu\nAWAITING_DEAL_NUMBER_EMPTY (other)        → query deal status\n  (no format validation — not-found just reprompts, stays on this state)\n\nAWAITING_DECLARATION + back_to_menu       → main menu\nAWAITING_DECLARATION (other)              → query הצהרה contents\n\n(no rule matched)                          → invalid format msg",
+        "height": 704,
+        "width": 656
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        7728
+      ],
+      "id": "2c5efc4f-73f7-4a47-8f55-636e768b43ba",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"בחר סוג מידע:\"\n    },\n    \"action\": {\n      \"buttons\": [\n        { \n          \"type\": \"reply\", \n          \"reply\": { \n            \"id\": \"customs_check\", \n            \"title\": \"בדיקת מכס פיזי\" \n          } \n        },\n        { \n          \"type\": \"reply\", \n          \"reply\": { \n            \"id\": \"scan_request\", \n            \"title\": \"הזמנה לשיקוף\" \n          } \n        }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        10720
+      ],
+      "id": "1dfce589-55d2-4b07-a830-cd2a82d61248",
+      "name": "Send More Info Submenu",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'FULL_RESULT_MENU_SENT', container_number = '{{ String($('Main Router (Route Switch)').item.json.body || '').replaceAll(\"'\", \"''\") }}', container_type = 'HH'\nWHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        3200,
+        8336
+      ],
+      "id": "45f9421a-1fa0-405e-930b-ec53b096a301",
+      "name": "Set State: Full Result Menu Sent",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'MORE_INFO_MENU_SENT'\nWHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        10720
+      ],
+      "id": "855d8105-5d42-4805-8779-e2e4834ab597",
+      "name": "Set State: More Info Menu Sent",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"בקרוב 🙂\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1184,
+        12592
+      ],
+      "id": "9cb72504-79c1-47c5-8a68-32005ad7982d",
+      "name": "Send More Info Result (Generic)",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    MAX(scan_booked_at) AS scan_booked,\n    MAX(scan_in_at) AS in_date,\n    MAX(scan_out_at) AS ex_date\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp, role FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}' AND is_active = 1) u\nWHERE v.container_number = '{{ $('Main Router (Route Switch)').item.json.container_number }}'\nAND v.logistic_approval <> 1\nAND v.handling_type = 'HH'\nAND v.package_kind = 'CON'\nAND v.status_code <> 'D'\nAND (\n  (u.role = 'customs_broker' AND (v.release_order_customer_id = u.hp OR v.broker_code = u.hp))\n  OR (u.role IN ('shipping_agent', 'forwarder') AND v.declarant_customer_id = u.hp)\n)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        11360
+      ],
+      "id": "dac90f05-2850-4f26-9a77-eb5c2b010ad6",
+      "name": "Query Scan Status",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nfunction fmtDate(iso) {\n  const [yyyy, mm, dd] = iso.split('T')[0].split('-');\n  return `${dd}/${mm}/${yyyy}`;\n}\n\nfunction fmtTime(iso) {\n  const [hh, min] = iso.split('T')[1].split(':');\n  return `${hh}:${min}`;\n}\n\nlet message;\nif (item.ex_date) {\n  message = `המכולה יצאה משיקוף בתאריך: ${fmtDate(item.ex_date)} ובשעה: ${fmtTime(item.ex_date)}`;\n} else if (item.in_date) {\n  message = `המכולה נכנסה לשיקוף בתאריך: ${fmtDate(item.in_date)} ובשעה: ${fmtTime(item.in_date)}`;\n} else if (item.scan_booked) {\n  message = `שיקוף הוזמן לתאריך: ${fmtDate(item.scan_booked)} ובשעה: ${fmtTime(item.scan_booked)}`;\n} else {\n  message = 'למכולה לא מתוכננת שיקוף 🚫';\n}\n\nreturn [{ json: { ...item, message } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        11360
+      ],
+      "id": "17651309-9ca1-406f-a580-ca2a1c7faa6b",
+      "name": "Build Scan Status Message1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"{{ $json.message }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        11360
+      ],
+      "id": "f903872b-62a3-48bd-a7eb-4f1f6436b262",
+      "name": "Send Scan Status",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    MAX(customs_registered_at) AS customs_registered\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp, role FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}' AND is_active = 1) u\nWHERE v.container_number = '{{ $('Main Router (Route Switch)').item.json.container_number }}'\nAND v.logistic_approval <> 1\nAND v.handling_type = 'HH'\nAND v.package_kind = 'CON'\nAND v.status_code <> 'D'\nAND (\n  (u.role = 'customs_broker' AND (v.release_order_customer_id = u.hp OR v.broker_code = u.hp))\n  OR (u.role IN ('shipping_agent', 'forwarder') AND v.declarant_customer_id = u.hp)\n)\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        10912
+      ],
+      "id": "274e7c24-0e94-4902-a5c5-900a565446d5",
+      "name": "Query Customs Status",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nfunction todayStr() {\n  const d = new Date();\n  const yyyy = d.getFullYear();\n  const mm = String(d.getMonth() + 1).padStart(2, '0');\n  const dd = String(d.getDate()).padStart(2, '0');\n  return `${yyyy}-${mm}-${dd}`;\n}\n\nfunction fmtDate(dbDate) {\n  const [yyyy, mm, dd] = dbDate.split('T')[0].split('-');\n  return `${dd}/${mm}/${yyyy}`;\n}\n\nlet message;\nif (!item.customs_registered) {\n  message = '🚫 לא צפויה בדיקת מכס פיזי למכולה';\n} else {\n  const checkDate = item.customs_registered.split('T')[0];\n  const today = todayStr();\n\n  if (today < checkDate) {\n    message = `בדיקת מכס פיזי צפויה למכולה בתאריך: ${fmtDate(item.customs_registered)}`;\n  } else if (today === checkDate) {\n    message = `המכולה נמצאת כעת בבדיקת מכס פיזי החל מתאריך: ${fmtDate(item.customs_registered)}`;\n  } else {\n    message = `המכולה יצאה מבדיקת מכס פיזי בתאריך: ${fmtDate(item.customs_registered)}`;\n  }\n}\n\nreturn [{ json: { ...item, message } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        11040
+      ],
+      "id": "fc62a16a-4c39-446c-a87e-da2ce0ac8dca",
+      "name": "Build Customs Status Message",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"{{ $json.message }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        11040
+      ],
+      "id": "cb481287-f6d0-4073-9c39-98e1dd58120f",
+      "name": "Send Customs Status",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"המכולה קיימת במערכת אבל לא משויכת לך 🚫\" }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        8416
+      ],
+      "id": "5b795c46-aa02-45a4-b91e-8db6430fa3f1",
+      "name": "Send Not Yours (Generic)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Main Router (Route Switch)').item.json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \"מזהה העסקה קיים במערכת, אך אינו שייך לך 🚫\" },\n    \"action\": {\n      \"buttons\": [\n        {\n          \"type\": \"reply\",\n          \"reply\": { \"id\": \"back_to_menu\", \"title\": \"חזרה לתפריט\" }\n        }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2528,
+        10464
+      ],
+      "id": "538f6efb-9120-4842-a7e8-2ad549dbbfb6",
+      "name": "Send Deal Not Yours",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT role FROM [BotDb].[dbo].[user_roles]\nWHERE phone = '{{ $('Determine Route').first().json.phone }}' AND is_active = 1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        9136
+      ],
+      "id": "af8649ef-ae50-444f-a5f6-f6085b79a9e6",
+      "name": "Get User Role",
+      "alwaysOutputData": false,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ur.role, ur.name,\n  (SELECT TOP 1 c.short_name_he\n   FROM [BotDb].[dbo].[customers] c\n   WHERE c.customer_id = ur.hp\n     AND c.client_type = CASE ur.role\n       WHEN 'shipping_agent' THEN N'סוכן אוניה'\n       WHEN 'forwarder' THEN N'משלח'\n       WHEN 'customs_broker' THEN N'עמיל מכס'\n     END\n  ) AS company_name,\n  (SELECT COUNT(*) FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Determine Route').first().json.phone }}') AS role_count\nFROM [BotDb].[dbo].[user_roles] ur\nWHERE ur.phone = '{{ $('Determine Route').first().json.phone }}' AND ur.is_active = 1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        3200,
+        8144
+      ],
+      "id": "f485f66f-ee18-46c5-9012-336d74927cb7",
+      "name": "Get User Role (Main Menu)",
+      "alwaysOutputData": false,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'AWAITING_DEAL_NUMBER_CARGO'\nWHERE phone = '{{ $json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        11552
+      ],
+      "id": "58468adb-88c8-4c24-b155-0c8d575839c1",
+      "name": "Set State: Awaiting Deal Number (Cargo)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  v.deal_number AS deal_number,\n  MAX(v.qty_declared) AS qty,\n  MAX(v.weight_declared) AS weight,\n  CASE WHEN MAX(v.declaration_number) IS NOT NULL AND MAX(v.declaration_number) <> '' THEN 1 ELSE 0 END AS has_customs,\n  CASE WHEN MAX(v.has_escort) = 'Y' THEN 1 ELSE 0 END AS has_livoi,\n  MAX(v.exit_date) AS exit_date,\n  MAX(CASE WHEN v.release_order_customer_id = u.hp OR v.broker_code = u.hp THEN 1 ELSE 0 END) AS is_owner\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}' AND is_active = 1) u\nWHERE LEFT(v.deal_number, 16) = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}'\nAND v.handling_type = 'PP'\nAND v.logistic_approval <> 1\nAND v.status_code <> 'D'\nGROUP BY v.deal_number",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        11152
+      ],
+      "id": "f360f79f-9dc2-44b6-913b-3ef611d19d9a",
+      "name": "Query Deal Status (Cargo)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8b174b9c-8ae0-4dd6-a287-408f1fa33465"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3325627a-f05c-43eb-a35e-2e3385faea6b",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "FOUND",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6cee9092-3fb8-4b87-b3c1-c7a9d8bccc14",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "NOT_YOURS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2400,
+        11136
+      ],
+      "id": "a7f2c7f4-8512-4d1c-a9fa-d9bbed2b23dc",
+      "name": "Branch: Cargo Deal Found?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET last_deal_number = '{{ String($('Main Router (Route Switch)').item.json.body || '').replaceAll(\"'\", \"''\") }}',\n    last_deal_container = {{ $('Determine Route').first().json.route === 'DEAL_NUMBER_EMPTY_SUBMITTED' ? \"'\" + $('Determine Route').first().json.container_number + \"'\" : 'NULL' }}\nWHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2752,
+        10272
+      ],
+      "id": "5784fd8f-b1f5-4c9e-9cbc-99b1ede17dd9",
+      "name": "Set State: Save Last Deal",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  v.deal_number AS deal_number,\n  v.qty_declared AS qty,\n  v.weight_declared AS weight,\n  CASE WHEN v.declaration_number IS NOT NULL AND v.declaration_number <> '' THEN 1 ELSE 0 END AS has_customs,\n  CASE WHEN v.has_escort = 'Y' THEN 1 ELSE 0 END AS has_livoi,\n  v.exit_date AS exit_date\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}' AND is_active = 1) u\nWHERE v.container_number = '{{ $('Main Router (Route Switch)').item.json.container_number }}'\nAND v.forwarder_master_id = u.hp\nAND v.handling_type = 'PP'\nAND v.logistic_approval <> 1\nAND v.status_code <> 'D'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        11744
+      ],
+      "id": "539e8fb0-cb2c-4cc6-b02a-afb7480a1ace",
+      "name": "Query Container Packages (Empty)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length === 0) {\n  return [{ json: { message: 'לא נמצאו מטענים המשויכים אליך במכולה זו' } }];\n}\nconst lines = items.map(item => {\n  const j = item.json;\n  const exitDate = j.exit_date === '00000000' ? '❌' : j.exit_date.slice(6,8) + '/' + j.exit_date.slice(4,6) + '/' + j.exit_date.slice(0,4);\n  return `📦 מזהה עסקה: ${j.deal_number}\\nכמות: ${j.qty}\\nמשקל: ${j.weight} ק\"ג\\nהתרת מכס: ${j.has_customs === 1 ? '✅' : '❌'}\\nתעודת ליווי: ${j.has_livoi === 1 ? '✅' : '❌'}\\nתאריך יציאה: ${exitDate}`;\n});\nreturn [{ json: { message: lines.join('\\n\\n') } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        11744
+      ],
+      "id": "7479a8dc-ac6b-4e60-a965-bab1f5b4e94b",
+      "name": "Build Package List Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Main Router (Route Switch)').item.json.phone;\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'text',\n    text: { body: $json.message }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        11744
+      ],
+      "id": "2a92e2f4-34c9-46fd-8b19-7dc8f9206f92",
+      "name": "Send Package List",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  v.container_number AS container_number,\n  v.entry_date AS entry_date,\n  v.exit_date AS exit_date,\n  v.escort_received_at AS livoi_date,\n  v.scan_booked_at AS scan_booked,\n  v.scan_in_at AS in_date,\n  v.scan_out_at AS ex_date,\n  v.customs_registered_at AS customs_registered\nFROM [BotDb].[dbo].[v_terminal_cargo] v\nCROSS JOIN (SELECT hp, role FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}' AND is_active = 1) u\nWHERE v.handling_type = 'HH'\nAND v.package_kind = 'CON'\nAND v.logistic_approval <> 1\nAND v.status_code <> 'D'\nAND v.container_number <> '{{ $('Main Router (Route Switch)').item.json.container_number }}'\nAND LEFT(v.deal_number, 16) = (\n  SELECT LEFT(v2.deal_number, 16)\n  FROM [BotDb].[dbo].[v_terminal_cargo] v2\n  WHERE v2.container_number = '{{ $('Main Router (Route Switch)').item.json.container_number }}'\n    AND v2.handling_type = 'HH' AND v2.package_kind = 'CON'\n)\nAND (\n  (u.role = 'customs_broker' AND (v.release_order_customer_id = u.hp OR v.broker_code = u.hp))\n  OR (u.role IN ('shipping_agent', 'forwarder') AND v.declarant_customer_id = u.hp)\n)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        7744
+      ],
+      "id": "cb10bb27-dde7-4a87-85b3-b24a51e9bc81",
+      "name": "Query Sibling Containers (Full)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length === 0) {\n  return [{ json: { message: 'לא נמצאו מכולות נוספות בעסקה זו' } }];\n}\n\nfunction fmtDate(iso) {\n  const [yyyy, mm, dd] = iso.split('T')[0].split('-');\n  return `${dd}/${mm}/${yyyy}`;\n}\nfunction fmtTime(iso) {\n  const [hh, min] = iso.split('T')[1].split(':');\n  return `${hh}:${min}`;\n}\nfunction todayStr() {\n  const d = new Date();\n  const yyyy = d.getFullYear();\n  const mm = String(d.getMonth() + 1).padStart(2, '0');\n  const dd = String(d.getDate()).padStart(2, '0');\n  return `${yyyy}-${mm}-${dd}`;\n}\n\nconst lines = items.map(item => {\n  const j = item.json;\n  const entryDate = j.entry_date === '00000000' ? '❌' : j.entry_date.slice(6,8) + '/' + j.entry_date.slice(4,6) + '/' + j.entry_date.slice(0,4);\n  const exitDate = j.exit_date === '00000000' ? '❌' : j.exit_date.slice(6,8) + '/' + j.exit_date.slice(4,6) + '/' + j.exit_date.slice(0,4);\n\nconst livoiDate = j.livoi_date ? `${fmtDate(j.livoi_date)} ${fmtTime(j.livoi_date)}` : '❌';\nlet block = `📦 מכולה מספר: ${j.container_number}\\nתעודת ליווי: ${livoiDate}\\nתאריך כניסה: ${entryDate}\\nתאריך יציאה: ${exitDate}`;\n  if (j.ex_date) {\n    block += `\\nהמכולה יצאה משיקוף בתאריך: ${fmtDate(j.ex_date)} ובשעה: ${fmtTime(j.ex_date)}`;\n  } else if (j.in_date) {\n    block += `\\nהמכולה נכנסה לשיקוף בתאריך: ${fmtDate(j.in_date)} ובשעה: ${fmtTime(j.in_date)}`;\n  } else if (j.scan_booked) {\n    block += `\\nשיקוף הוזמן לתאריך: ${fmtDate(j.scan_booked)} ובשעה: ${fmtTime(j.scan_booked)}`;\n  }\n\n  if (j.customs_registered) {\n    const checkDate = j.customs_registered.split('T')[0];\n    const today = todayStr();\n    if (today < checkDate) {\n      block += `\\nבדיקת מכס פיזי צפויה למכולה בתאריך: ${fmtDate(j.customs_registered)}`;\n    } else if (today === checkDate) {\n      block += `\\nהמכולה נמצאת כעת בבדיקת מכס פיזי החל מתאריך: ${fmtDate(j.customs_registered)}`;\n    } else {\n      block += `\\nהמכולה יצאה מבדיקת מכס פיזי בתאריך: ${fmtDate(j.customs_registered)}`;\n    }\n  }\n\n  return block;\n});\n\nconst BATCH_SIZE = 30;\nconst batches = [];\nfor (let i = 0; i < lines.length; i += BATCH_SIZE) {\n  batches.push(lines.slice(i, i + BATCH_SIZE));\n}\n\nreturn batches.map(batch => ({ json: { message: batch.join('\\n\\n') }, pairedItem: 0 }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        7744
+      ],
+      "id": "8103eb26-3df2-4e06-bc75-7239004a7f5c",
+      "name": "Build Sibling Containers Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Main Router (Route Switch)').first().json.phone\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'text',\n    text: { body: $json.message }\n  });\n})()\n}}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        7744
+      ],
+      "id": "e5de71b3-d180-4462-9322-49affc0faf60",
+      "name": "Send Sibling Containers",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[sessions]\nSET state = 'AWAITING_ROLE_SWITCH'\nWHERE phone = '{{ $('Determine Route').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        11920
+      ],
+      "id": "74cb94e0-53aa-429b-9f0d-fe9bf9eae4a8",
+      "name": "Set State: Awaiting Role Switch",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT role FROM [BotDb].[dbo].[user_roles]\nWHERE phone = '{{ $('Determine Route').first().json.phone }}' AND is_active = 0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        12032
+      ],
+      "id": "395d2053-5900-4f38-ac2d-f55db32d7fbb",
+      "name": "Query Other Roles",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Determine Route').first().json.phone;\n  const otherRoles = $input.all().map(item => item.json.role);\n  const roleLabels = {\n    shipping_agent: { id: 'shipping_agent', title: 'סוכן אונייה 🚢' },\n    forwarder: { id: 'forwarder', title: 'משלח 📦' },\n    customs_broker: { id: 'customs_broker', title: 'עמיל מכס 📋' }\n  };\n  const buttons = otherRoles.map(r => ({ type: 'reply', reply: roleLabels[r] }));\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: 'לאיזה תפקיד תרצה לעבור?' },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2528,
+        12032
+      ],
+      "id": "0491bb70-153a-46f2-aaa7-7401ad0e8e76",
+      "name": "Ask Which Role",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "waitBetweenTries": 500,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE [BotDb].[dbo].[user_roles]\nSET is_active = CASE WHEN role = '{{ String($json.body || '').replaceAll(\"'\", \"''\") }}' THEN 1 ELSE 0 END\nWHERE phone = '{{ $('Determine Route').first().json.phone }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2752,
+        12176
+      ],
+      "id": "dc9ab796-622b-44b2-ba63-08c551dfef75",
+      "name": "Update Active Role",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM [BotDb].[dbo].[user_roles] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}';\nDELETE FROM [BotDb].[dbo].[sessions] WHERE phone = '{{ $('Main Router (Route Switch)').item.json.phone }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        2528,
+        12368
+      ],
+      "id": "abfe791b-130d-41dc-8dc8-0ea8d69d8763",
+      "name": "Delete Registration (Resign Up)",
+      "credentials": {
+        "microsoftSql": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "SQL Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Main Router (Route Switch)').item.json.phone;\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'text',\n    text: { body: 'נמחקת מהמערכת. שלח כל הודעה כדי להירשם מחדש' }\n  });\n})()\n}}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        12368
+      ],
+      "id": "cca1e330-1d5c-4e86-8380-5b94859544bb",
+      "name": "Send Resign Up Confirmation",
+      "executeOnce": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nlet livoi_date_fmt = '❌';\nif (item.livoi_date) {\n  const [d, t] = item.livoi_date.split('T');\n  const [yyyy, mm, dd] = d.split('-');\n  const [hh, min] = t.split(':');\n  livoi_date_fmt = `${dd}/${mm}/${yyyy} ${hh}:${min}`;\n}\nreturn [{ json: { ...item, livoi_date_fmt } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2752,
+        8224
+      ],
+      "id": "da53da9c-3f67-4fe9-bc4e-5bf49b267d69",
+      "name": "Format Livoi Date"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nlet livoi_date_fmt = '❌';\nif (item.livoi_date) {\n  const [d, t] = item.livoi_date.split('T');\n  const [yyyy, mm, dd] = d.split('-');\n  const [hh, min] = t.split(':');\n  livoi_date_fmt = `${dd}/${mm}/${yyyy} ${hh}:${min}`;\n}\nreturn [{ json: { ...item, livoi_date_fmt } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        8896
+      ],
+      "id": "ec60b180-19aa-4203-8b35-2edcc2823e39",
+      "name": "Format Livoi Date (Empty)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Determine Route').first().json.phone;\n  const lastDealNumber = $('Determine Route').first().json.last_deal_number;\n  const buttons = [];\n  if (lastDealNumber) {\n    buttons.push({ type: 'reply', reply: { id: 'recheck_last_deal', title: `${lastDealNumber}` } });\n  }\n  buttons.push({ type: 'reply', reply: { id: 'back_to_menu', title: 'חזרה לתפריט' } });\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'interactive',\n    interactive: {\n      type: 'button',\n      body: { text: 'הזינו את מזהה העסקה:' },\n      action: { buttons }\n    }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        11552
+      ],
+      "id": "c73fd3a2-c27c-4098-92d6-604ab4931152",
+      "name": "Ask Deal Number (Cargo)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length === 0) {\n  return [{ json: { status: 'NOT_FOUND' } }];\n}\nconst owned = items.filter(i => i.json.is_owner === 1);\nif (owned.length === 0) {\n  return [{ json: { status: 'NOT_YOURS' } }];\n}\nconst lines = owned.map(item => {\n  const j = item.json;\n  const exitDate = j.exit_date === '00000000' ? '❌' : j.exit_date.slice(6,8) + '/' + j.exit_date.slice(4,6) + '/' + j.exit_date.slice(0,4);\n  return `📦 מזהה עסקה: ${j.deal_number}\\nכמות: ${j.qty}\\nמשקל: ${j.weight} ק\"ג\\nהתרת מכס: ${j.has_customs === 1 ? '✅' : '❌'}\\nתעודת ליווי: ${j.has_livoi === 1 ? '✅' : '❌'}\\nתאריך יציאה: ${exitDate}`;\n});\nreturn [{ json: { status: 'FOUND', message: lines.join('\\n\\n') } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2256,
+        11152
+      ],
+      "id": "dbc4c63c-90cc-4b55-b3a7-ae61ee48f3c4",
+      "name": "Build Cargo Deal Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n(() => {\n  const phone = $('Main Router (Route Switch)').item.json.phone\n  return JSON.stringify({\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'text',\n    text: { body: $json.message }\n  });\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2576,
+        11152
+      ],
+      "id": "061240fe-d60e-4d44-858d-6580e9e05495",
+      "name": "Send Cargo Deal List",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"פורמט לא תקין ❌\\nמזהה העסקה חייב להכיל 16 תווים (אותיות באנגלית ו/או ספרות)\\nנסו שנית:\"\n    },\n    \"action\": {\n      \"buttons\": [\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"back_to_menu\",\n            \"title\": \"חזרה לתפריט\"\n          }\n        }\n      ]\n    }\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2080,
+        7760
+      ],
+      "id": "cc9a56e3-4474-4148-9db2-b01fa41c92e4",
+      "name": "Send Invalid Format (Cargo Deal)",
+      "retryOnFail": true,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Session State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session State": {
+      "main": [
+        [
+          {
+            "node": "Determine Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Route": {
+      "main": [
+        [
+          {
+            "node": "Main Router (Route Switch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Main Router (Route Switch)": {
+      "main": [
+        [
+          {
+            "node": "New Session: Insert Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: Tracking Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get User Role (Main Menu)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Container Status (Full)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Invalid Format (Container)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get User Role",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: Awaiting Container (Full)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: Awaiting Container (Empty)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: Awaiting Declaration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Invalid Format (Container)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Container Status (Empty)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: Awaiting Deal Number",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Deal Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Declaration Contents",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: More Info Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Customs Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Scan Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: Awaiting Deal Number (Cargo)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Deal Status (Cargo)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Container Packages (Empty)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Sibling Containers (Full)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set State: Awaiting Role Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Active Role",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Registration (Resign Up)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Other Roles",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Invalid Format (Cargo Deal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset State: Menu Sent": {
+      "main": [
+        [
+          {
+            "node": "Get User Role (Main Menu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Not Found (Generic)": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Session: Insert Menu Sent": {
+      "main": [
+        [
+          {
+            "node": "Get User Role (Main Menu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Tracking Menu Sent": {
+      "main": [
+        [
+          {
+            "node": "Get User Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Awaiting Container (Full)": {
+      "main": [
+        [
+          {
+            "node": "Ask Container Number (Full)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Container Status (Full)": {
+      "main": [
+        [
+          {
+            "node": "Branch: Full Container Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Branch: Full Container Found?": {
+      "main": [
+        [
+          {
+            "node": "Send Not Found (Generic)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Livoi Date",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Not Yours (Generic)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Full Container Status": {
+      "main": [
+        [
+          {
+            "node": "Set State: Full Result Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Awaiting Container (Empty)": {
+      "main": [
+        [
+          {
+            "node": "Ask Container Number (Empty)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Container Status (Empty)": {
+      "main": [
+        [
+          {
+            "node": "Branch: Empty Container Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Branch: Empty Container Found?": {
+      "main": [
+        [
+          {
+            "node": "Send Not Found (Generic)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Livoi Date (Empty)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Not Yours (Generic)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Empty Status + Deal Choice": {
+      "main": [
+        [
+          {
+            "node": "Set State: Empty Result Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Awaiting Deal Number": {
+      "main": [
+        [
+          {
+            "node": "Ask Deal Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Deal Status": {
+      "main": [
+        [
+          {
+            "node": "Branch: Deal Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Branch: Deal Found?": {
+      "main": [
+        [
+          {
+            "node": "Send Deal Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Deal Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Deal Not Yours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Deal Status": {
+      "main": [
+        [
+          {
+            "node": "Set State: Save Last Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Awaiting Declaration": {
+      "main": [
+        [
+          {
+            "node": "Ask Declaration Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Declaration Contents": {
+      "main": [
+        [
+          {
+            "node": "Format & Batch Declaration Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format & Batch Declaration Results": {
+      "main": [
+        [
+          {
+            "node": "Send Declaration Results (Batched)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Declaration Results (Batched)": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: More Info Menu Sent": {
+      "main": [
+        [
+          {
+            "node": "Send More Info Submenu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Scan Status": {
+      "main": [
+        [
+          {
+            "node": "Build Scan Status Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scan Status Message1": {
+      "main": [
+        [
+          {
+            "node": "Send Scan Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Scan Status": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Customs Status": {
+      "main": [
+        [
+          {
+            "node": "Build Customs Status Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Customs Status Message": {
+      "main": [
+        [
+          {
+            "node": "Send Customs Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Customs Status": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Not Yours (Generic)": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Role": {
+      "main": [
+        [
+          {
+            "node": "Send Tracking Submenu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Role (Main Menu)": {
+      "main": [
+        [
+          {
+            "node": "Send Main Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Awaiting Deal Number (Cargo)": {
+      "main": [
+        [
+          {
+            "node": "Ask Deal Number (Cargo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Branch: Cargo Deal Found?": {
+      "main": [
+        [
+          {
+            "node": "Send Deal Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Cargo Deal List",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Deal Not Yours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Deal Status (Cargo)": {
+      "main": [
+        [
+          {
+            "node": "Build Cargo Deal Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Save Last Deal": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Container Packages (Empty)": {
+      "main": [
+        [
+          {
+            "node": "Build Package List Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Package List Message": {
+      "main": [
+        [
+          {
+            "node": "Send Package List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Package List": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Sibling Containers (Full)": {
+      "main": [
+        [
+          {
+            "node": "Build Sibling Containers Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Sibling Containers Message": {
+      "main": [
+        [
+          {
+            "node": "Send Sibling Containers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Sibling Containers": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set State: Awaiting Role Switch": {
+      "main": [
+        [
+          {
+            "node": "Query Other Roles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Other Roles": {
+      "main": [
+        [
+          {
+            "node": "Ask Which Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Active Role": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Registration (Resign Up)": {
+      "main": [
+        [
+          {
+            "node": "Send Resign Up Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Resign Up Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Reset State: Menu Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Livoi Date": {
+      "main": [
+        [
+          {
+            "node": "Send Full Container Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Livoi Date (Empty)": {
+      "main": [
+        [
+          {
+            "node": "Send Empty Status + Deal Choice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Cargo Deal Message": {
+      "main": [
+        [
+          {
+            "node": "Branch: Cargo Deal Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cargo Deal List": {
+      "main": [
+        [
+          {
+            "node": "Set State: Save Last Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "62cee8ba-6106-4b7a-94f0-5e72218ba9c4",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "package-tracking",
+  "tags": []
+}

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>Cargo Bot Simulator</title>
+  <meta name="description" content="Try a WhatsApp cargo-tracking bot: the real routing logic and replies, running in your browser on invented data." />
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="layout">
+    <section class="panel" aria-label="About this demo">
+      <header class="intro">
+        <img src="logo.svg" alt="" class="intro__logo" width="44" height="44" />
+        <div>
+          <h1>WhatsApp Cargo Bot</h1>
+          <p>The production bot's routing function and replies, running in your browser on invented data. Chat in Hebrew, or just tap the buttons.</p>
+        </div>
+      </header>
+
+      <div class="card">
+        <h2>Chat as</h2>
+        <div class="personas" role="radiogroup" aria-label="Demo user" id="personas"></div>
+      </div>
+
+      <div class="card">
+        <h2>Try these</h2>
+        <p class="hint">Start from <b>מעקב מכולה</b> → the container type, then send a number:</p>
+        <div class="samples" id="samples"></div>
+      </div>
+
+      <div class="card hood" aria-live="polite">
+        <h2>Under the hood</h2>
+        <dl class="hood__grid">
+          <dt>State</dt><dd><code id="hood-state">NO_SESSION</code></dd>
+          <dt>Route</dt><dd><code id="hood-route">—</code></dd>
+        </dl>
+        <p class="hood__label">Workflow nodes that ran</p>
+        <ol class="trace" id="hood-trace"><li class="trace__empty">Send a message to see the path through n8n.</li></ol>
+        <p class="hood__note" id="hood-note" hidden></p>
+      </div>
+
+      <p class="footnote">Every message is one turn: read the session state, route on state + input, run one branch, write the next state. Same logic as the 70-node n8n workflow; the SQL lookups are replaced by invented data.</p>
+    </section>
+
+    <section class="phone" aria-label="WhatsApp chat with the bot" dir="rtl" lang="he">
+      <header class="chat-head">
+        <img src="logo.svg" alt="" class="chat-head__avatar" width="40" height="40" />
+        <div>
+          <p class="chat-head__name">מעקב מטענים</p>
+          <p class="chat-head__status" id="status">בוט · מקוון</p>
+        </div>
+        <button type="button" class="chat-head__reset" id="reset" title="התחלה מחדש" aria-label="התחלה מחדש">↺</button>
+      </header>
+
+      <div class="chat" id="chat" role="log" aria-live="polite">
+        <div class="day-chip">היום</div>
+        <div class="system-chip" id="start-hint">שלחו הודעה כדי להתחיל
+          <button type="button" class="start-btn" id="start">שלום 👋</button>
+        </div>
+      </div>
+
+      <form class="composer" id="composer" autocomplete="off">
+        <input type="text" id="input" class="composer__input" placeholder="הודעה" aria-label="הודעה" maxlength="200" />
+        <button type="submit" class="composer__send" aria-label="שליחה">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 20.85 12.9a1 1 0 0 0 0-1.8L3.4 3.6a.99.99 0 0 0-1.39 1.21L4.24 11 2.01 17.2A.99.99 0 0 0 3.4 20.4Z" transform="scale(-1,1) translate(-24,0)"/></svg>
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <script src="sphere.js"></script>
+  <script src="bot.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

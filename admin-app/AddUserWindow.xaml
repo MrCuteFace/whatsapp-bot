@@ -1,0 +1,37 @@
+<Window x:Class="whatsapp_bot_user_management.AddUserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:whatsapp_bot_user_management"
+        mc:Ignorable="d"
+        Title="הוספת משתמש חדש" Height="560" Width="420"
+        FlowDirection="RightToLeft" WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize" MinHeight="420" MinWidth="380">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="28">
+            <TextBlock Text="הוספת משתמש חדש" Style="{StaticResource HeaderTextStyle}" FontSize="20" Margin="0,0,0,22"/>
+
+            <TextBlock Text="טלפון (לדוגמה 972500000000)" Style="{StaticResource FieldLabelStyle}"/>
+            <TextBox x:Name="PhoneBox" Margin="0,0,0,16" TextChanged="ResetCheck"/>
+
+            <TextBlock Text="שם" Style="{StaticResource FieldLabelStyle}"/>
+            <TextBox x:Name="NameBox" Margin="0,0,0,16"/>
+
+            <TextBlock Text="ח.פ" Style="{StaticResource FieldLabelStyle}"/>
+            <TextBox x:Name="HpBox" Margin="0,0,0,16" TextChanged="ResetCheck"/>
+
+            <TextBlock Text="תפקידים (ניתן לבחור כמה)" Style="{StaticResource FieldLabelStyle}" Margin="2,0,2,8"/>
+            <CheckBox x:Name="ShippingAgentCheck" Content="סוכן אוניה" Checked="ResetCheck" Unchecked="ResetCheck" Margin="0,0,0,2"/>
+            <TextBlock x:Name="ShippingAgentResult" TextWrapping="Wrap" Margin="24,0,0,8" FontSize="12"/>
+            <CheckBox x:Name="ForwarderCheck" Content="משלח" Checked="ResetCheck" Unchecked="ResetCheck" Margin="0,0,0,2"/>
+            <TextBlock x:Name="ForwarderResult" TextWrapping="Wrap" Margin="24,0,0,8" FontSize="12"/>
+            <CheckBox x:Name="CustomsBrokerCheck" Content="עמיל מכס" Checked="ResetCheck" Unchecked="ResetCheck" Margin="0,0,0,2"/>
+            <TextBlock x:Name="CustomsBrokerResult" TextWrapping="Wrap" Margin="24,0,0,16" FontSize="12"/>
+
+            <Button x:Name="AddButton" Content="הוסף משתמש" Click="AddButton_Click"
+                    Style="{StaticResource PrimaryButtonStyle}"/>
+            <TextBlock x:Name="StatusText" TextWrapping="Wrap" Margin="0,16,0,0"/>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
